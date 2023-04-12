@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<!-- saved from url=(0052)https://getbootstrap.com/docs/5.0/examples/checkout/ -->
+<html lang="en"><head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <title>Beertap AP - CONFIGURATION</title>
+    <!-- <link rel="stylesheet" type="text/css" href="bootstrap.min.css">-->
+    <link rel="stylesheet" type="text/css" href="/bootstrap">
+  </head>
+  <body class="bg-light">
+    <div class="container">
+      <div class="py-5 text-center">
+        <h1>LNBeertap</h1>
+        <p class="lead">Use this website to configure your Beertap. </p>
+      </div>
+          <ul class="list">
+            <li class="list-item">Set Wifi name and password with which the ESP should connect. </li>
+            <br>
+            <li class="list-item">Create a LNURLDevice device string on a LNbits instance using the extension lnurldevice and enter it here. There you can also specify how much a beer should cost.</li>
+            <br>
+            <li class="list-item">liter per beer is needed to adjust the tapping time per beer above the fill level of the keg. The pressure when tapping decreases when the keg gets emptier. therefore you can set duration/beer (full) and duration/beer (empty). both values can vary depending on the type of beer.</li>
+            <br>
+            <li class="list-item">Manual tapping means that after successful receipt of payment, the beer can be tapped for the set duration. the customer has a total of 30 seconds to tap the beer. he can press the tap button as often as he wants. the preset tapping duration (under duration/beer) cannot be exceeded. Unchecked maualtapping means that the beer is tapped in one go (duration/beer).</li>
+          </ul>
+          <br>
+        <div class="col-md-7 col-lg-12">  
+      <form id="form">
+        <h2>WiFi</h2>
+        <div class="form-group">
+          <label class="form-label" for="ssid">SSID:</label>
+          <input class="form-control" type="text" id="ssid" name="ssid" value="">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pwd">Password:</label>
+          <input class="form-control" type="password" id="pwd" name="pwd" value="">
+        </div><br>
+        <h2>Lnbits</h2>
+        <div class="form-group">
+          <label class="form-label" for="lnurldevicestring">LNUrlDevice String:</label>
+          <input class="form-control" type="text" id="lnurldevicestring" name="lnurldevicestring" value="">
+        </div><br>
+        <h2>Beer</h2>
+        <div class="form-group">
+          <label class="form-label" for="literperbeer">Liter per Beer:</label>
+          <input class="form-control" type="float" id="literperbeer" name="literperbeer" value="">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="durationfull">Duration/Beer (full Keg):</label>
+          <input class="form-control" type="float" id="durationfull" name="durationfull" value="">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="durationempty">Duration/Beer (empty Keg):</label>
+          <input class="form-control" type="float" id="durationempty" name="durationempty" value="">
+        </div>
+        <br>        
+        <div class="row mb-3">
+          <div class="form-group col-md-6">
+            <label class="form-check-label" for="manualtapping">Manual Tapping</label>
+            <input type="checkbox" class="form-check-input" id="manualtapping" checked>
+          </div>
+          <div class="col-md-6 form-group form-inline">
+            <label class="d-inline-block" for="beercount">Beer Count:</label>
+            <div class="col-md-2 d-inline-block">
+              <input type="int" readonly class="form-control-plaintext"  id="beercount" name="beercount" value="0">
+            </div>
+          </div>
+        </div>
+        <br>
+        <div class="row mb-3">
+          <div class="col-6 col-sm-4">
+            <button type="submit" class="btn btn-success btn-lg" form="form" value="Submit">Save Config</button>
+          </div>
+          <div class="col-6 col-sm-4">
+            <button type="button" id="servo" class="btn btn-warning btn-lg" value="Open" onclick="controlServo()">Open Servo</button>
+          </div>
+          <div class="col-6 col-sm-4">
+            <button type="button" id="reset" class="btn btn-warning btn-lg" value="Reset" onclick="resetBeercount()">Reset Beercount</button>
+          </div>
+        </div>
+      </form>
+      </div>
+    </div>
+    </div>    
+    <script>
+      const log = (text, color) => {
+        document.getElementById('log').innerHTML += `<div class="alert alert-info">${text}</div><br>`;
+      };
+
+      const socket = new WebSocket('ws://' + location.host + '/config');
+      socket.addEventListener('message', ev => {
+        if(ev.data != "close" && ev.data != "open"){
+          //log('<<< ' + ev.data, 'blue');
+          console.log(ev.data)
+          var json = JSON.parse(ev.data);
+          console.log("fill forms with: ")
+          console.log(json)
+          for(key in json)
+          {
+            if(json.hasOwnProperty(key)){
+              document.getElementById(key).value=json[key];
+              if(key == "manualtapping"){
+                if (json[key] == "False"){
+                  toggleManualTapping(false)
+                }
+                else{
+                  toggleManualTapping(true)
+                }
+              }
+            }
+          }
+
+        }
+        else{
+          console.log("received: ")
+          console.log(ev.data)
+          document.getElementById("servo").value=ev.data;
+          document.getElementById("servo").firstChild=ev.data;
+        }
+      });
+      socket.addEventListener('close', ev => {
+        //log('<<< closed');
+      });
+      function toggleManualTapping(checked) {
+        var mt = document.getElementById('manualtapping');
+        if (checked != mt.checked) {
+          mt.click();
+        }
+      }
+      function handleSubmit(event) {
+        event.preventDefault();
+        const data = new FormData(event.target);
+        const value = Object.fromEntries(data.entries());
+        var json = JSON.parse(JSON.stringify({ value }))["value"];
+        if (document.getElementById("manualtapping").checked){
+          json.manualtapping = "True";
+        }
+        else{
+          json.manualtapping = "False";
+        }
+        console.log(json);
+        socket.send(JSON.stringify(json)); 
+      }
+
+      const form = document.querySelector('form');
+      form.addEventListener('submit', handleSubmit);
+
+      function controlServo() {
+        var text = document.getElementById("servo").value;
+        socket.send(document.getElementById("servo").value); 
+        text = text == "Close" ? "Open" : "Close";
+        document.getElementById("servo").value = text;
+        document.getElementById("servo").innerHTML = text;
+      }
+
+      function resetBeercount() {
+        var text = document.getElementById("reset").value;
+        socket.send("reset beercount"); 
+      }
+
+    </script>
+  </body>
+</html>
+
